@@ -11,7 +11,7 @@
     "dependencies": {
         "@supabase/supabase-js": "^2.39.7",
         "next": "latest",
-        "nacl": "^1.0.0",
+        "tweetnacl": "^1.0.0",
         "react": "latest",
         "react-dom": "latest"
     },

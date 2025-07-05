@@ -6,7 +6,7 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "register-commands": "ts-node scripts/register-commands.ts"
+        "register-commands": "node --loader ts-node/esm scripts/register-commands.ts"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.39.7",

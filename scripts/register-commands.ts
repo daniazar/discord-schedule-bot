@@ -1,9 +1,7 @@
-import fetch from 'node-fetch';
-import dotenv from 'dotenv';
-dotenv.config();
+require('dotenv').config();
 
-const TOKEN = process.env.DISCORD_BOT_TOKEN!;
-const CLIENT_ID = process.env.DISCORD_APPLICATION_ID!;
+const TOKEN = process.env.DISCORD_BOT_TOKEN;
+const CLIENT_ID = process.env.DISCORD_APPLICATION_ID;
 
 const commands = [
     {

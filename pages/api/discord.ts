@@ -76,10 +76,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
         body = JSON.parse(rawBody.toString('utf8'));
     } catch (e) {
+        console.error('JSON parsing error:', e);
         return res.status(400).json({ error: 'Invalid JSON' });
     }
 
-    if (!verifyDiscordRequest(req, rawBody)) {
+    const verificationResult = verifyDiscordRequest(req, rawBody);
+    console.log('Verification details:', {
+        hasSignature: !!req.headers['x-signature-ed25519'],
+        hasTimestamp: !!req.headers['x-signature-timestamp'],
+        publicKeyLength: DISCORD_PUBLIC_KEY?.length,
+        bodyLength: rawBody.length,
+        verificationResult,
+        bodyType: body?.type
+    });
+
+    if (!verificationResult) {
+        console.error('Discord verification failed');
         return res.status(401).send('Invalid request signature');
     }
 

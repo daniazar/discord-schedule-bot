@@ -13,7 +13,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             message: 'Discord endpoint is reachable',
             hasPublicKey: !!process.env.DISCORD_PUBLIC_KEY,
             publicKey: process.env.DISCORD_PUBLIC_KEY ? 'Set' : 'Missing',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            fullPublicKey: process.env.DISCORD_PUBLIC_KEY // Show full key for debugging
         });
     }
     
@@ -22,7 +23,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             message: 'POST request received',
             headers: req.headers,
             hasSignature: !!req.headers['x-signature-ed25519'],
-            hasTimestamp: !!req.headers['x-signature-timestamp']
+            hasTimestamp: !!req.headers['x-signature-timestamp'],
+            signature: req.headers['x-signature-ed25519'],
+            timestamp: req.headers['x-signature-timestamp']
         });
     }
     

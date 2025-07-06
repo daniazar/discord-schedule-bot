@@ -59,6 +59,14 @@ async function ensureChannelTitle(channel_id: string) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    console.log('Discord webhook received:', {
+        method: req.method,
+        hasPublicKey: !!DISCORD_PUBLIC_KEY,
+        publicKeyLength: DISCORD_PUBLIC_KEY?.length,
+        hasSignature: !!req.headers['x-signature-ed25519'],
+        hasTimestamp: !!req.headers['x-signature-timestamp']
+    });
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }

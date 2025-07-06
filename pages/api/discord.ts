@@ -107,19 +107,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await ensureChannelTitle(channel_id);
 
         if (command === 'add') {
-            const time = data.options[0].value;
-            const signupTime = new Date(time);
-            if (isNaN(signupTime.getTime()) || signupTime < new Date()) {
+            // Get hour (required) and day (optional)
+            const hour = data.options.find((opt: any) => opt.name === 'hour')?.value;
+            const day = data.options.find((opt: any) => opt.name === 'day')?.value;
+            
+            if (hour === undefined || hour < 0 || hour > 23) {
                 return res.status(200).json({
                     type: 4,
-                    data: { content: 'Please provide a valid future time in ISO8601 format (e.g. 2025-07-06T19:00:00Z).' },
+                    data: { content: 'Please provide a valid hour between 0-23 (e.g. 14 for 2 PM).' },
                 });
             }
+
+            // Create the signup time
+            const now = new Date();
+            const signupDate = new Date();
+            
+            // Set the day (use today if not specified)
+            if (day !== undefined) {
+                if (day < 1 || day > 31) {
+                    return res.status(200).json({
+                        type: 4,
+                        data: { content: 'Please provide a valid day between 1-31.' },
+                    });
+                }
+                signupDate.setDate(day);
+            }
+            
+            // Set the hour and reset minutes/seconds
+            signupDate.setHours(hour, 0, 0, 0);
+            
+            // If the time is in the past, assume they mean next month
+            if (signupDate <= now) {
+                signupDate.setMonth(signupDate.getMonth() + 1);
+            }
+            
+            const timeString = signupDate.toISOString();
+
             const { data: exists } = await supabase
                 .from('signups')
                 .select('*')
                 .eq('channel_id', channel_id)
-                .eq('time', time)
+                .eq('time', timeString)
                 .maybeSingle();
             if (exists) {
                 return res.status(200).json({
@@ -133,12 +161,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     channel_id,
                     user_id: user?.id || member.user.id,
                     username: user?.username || member.user.username,
-                    time,
+                    time: timeString,
                 }
             ]);
+            
+            const dayStr = day ? `day ${day}` : 'today';
+            const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+            
             return res.status(200).json({
                 type: 4,
-                data: { content: `You have been added at ${isoToDiscordTimestamp(time)}.` }
+                data: { content: `You have been added for ${dayStr} at ${hourStr} (${isoToDiscordTimestamp(timeString)}).` }
             });
         }
 

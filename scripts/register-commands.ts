@@ -6,13 +6,23 @@ const CLIENT_ID = process.env.DISCORD_APPLICATION_ID;
 const commands = [
     {
         name: 'add',
-        description: 'Sign up for a specific time (ISO 8601, e.g. 2025-07-06T19:00:00Z)',
+        description: 'Sign up for a specific time',
         options: [
             {
-                name: 'time',
-                description: 'Time (ISO 8601 UTC, e.g. 2025-07-06T19:00:00Z)',
-                type: 3, // STRING
+                name: 'hour',
+                description: 'Hour (0-23, e.g. 14 for 2 PM)',
+                type: 4, // INTEGER
                 required: true,
+                min_value: 0,
+                max_value: 23,
+            },
+            {
+                name: 'day',
+                description: 'Day (1-31, defaults to today if not specified)',
+                type: 4, // INTEGER
+                required: false,
+                min_value: 1,
+                max_value: 31,
             },
         ],
     },

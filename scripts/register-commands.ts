@@ -24,11 +24,17 @@ const commands = [
                 min_value: 1,
                 max_value: 31,
             },
+            {
+                name: 'name',
+                description: 'Name of person to add (defaults to your Discord username)',
+                type: 3, // STRING
+                required: false,
+            },
         ],
     },
     {
         name: 'remove',
-        description: 'Remove yourself from a specific time or all upcoming times',
+        description: 'Remove someone from a specific time or all upcoming times',
         options: [
             {
                 name: 'hour',
@@ -45,6 +51,12 @@ const commands = [
                 required: false,
                 min_value: 1,
                 max_value: 31,
+            },
+            {
+                name: 'name',
+                description: 'Name of person to remove (defaults to your Discord username)',
+                type: 3, // STRING
+                required: false,
             },
         ],
     },

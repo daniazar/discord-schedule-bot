@@ -107,9 +107,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await ensureChannelTitle(channel_id);
 
         if (command === 'add') {
-            // Get hour (required) and day (optional)
+            // Get hour (required), day (optional), and name (optional)
             const hour = data.options.find((opt: any) => opt.name === 'hour')?.value;
             const day = data.options.find((opt: any) => opt.name === 'day')?.value;
+            const customName = data.options.find((opt: any) => opt.name === 'name')?.value;
             
             if (hour === undefined || hour < 0 || hour > 23) {
                 return res.status(200).json({
@@ -143,6 +144,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             
             const timeString = signupDate.toISOString();
 
+            // Determine who is being added
+            const discordUserId = user?.id || member.user.id;
+            const discordUsername = user?.username || member.user.username;
+            const finalUsername = customName || discordUsername;
+            const finalUserId = customName ? `custom_${customName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : discordUserId;
+
             const { data: exists } = await supabase
                 .from('signups')
                 .select('*')
@@ -159,26 +166,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 {
                     guild_id,
                     channel_id,
-                    user_id: user?.id || member.user.id,
-                    username: user?.username || member.user.username,
+                    user_id: finalUserId,
+                    username: finalUsername,
                     time: timeString,
                 }
             ]);
             
             const dayStr = day ? `day ${day}` : 'today';
             const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+            const whoStr = customName ? `**${customName}**` : 'You';
             
             return res.status(200).json({
                 type: 4,
-                data: { content: `You have been added for ${dayStr} at ${hourStr} (${isoToDiscordTimestamp(timeString)}).` }
+                data: { content: `${whoStr} ${customName ? 'has' : 'have'} been added for ${dayStr} at ${hourStr} (${isoToDiscordTimestamp(timeString)}).` }
             });
         }
 
         if (command === 'remove') {
             const hour = data.options?.find((opt: any) => opt.name === 'hour')?.value;
             const day = data.options?.find((opt: any) => opt.name === 'day')?.value;
+            const customName = data.options?.find((opt: any) => opt.name === 'name')?.value;
             
-            const userId = user?.id || member.user.id;
+            // Determine who is being removed
+            const discordUserId = user?.id || member.user.id;
+            const discordUsername = user?.username || member.user.username;
+            const targetUserId = customName ? `custom_${customName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : discordUserId;
+            const targetUsername = customName || discordUsername;
             
             if (hour === undefined) {
                 // Remove from all upcoming times
@@ -186,20 +199,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     .from('signups')
                     .select('*')
                     .eq('channel_id', channel_id)
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .gte('time', new Date().toISOString());
                 
                 await supabase
                     .from('signups')
                     .delete()
                     .eq('channel_id', channel_id)
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .gte('time', new Date().toISOString());
                 
                 const count = removed?.length || 0;
+                const whoStr = customName ? `**${customName}**` : 'You';
                 return res.status(200).json({
                     type: 4,
-                    data: { content: `You have been removed from ${count} upcoming slot(s) in this channel.` }
+                    data: { content: `${whoStr} ${customName ? 'has' : 'have'} been removed from ${count} upcoming slot(s) in this channel.` }
                 });
             } else {
                 // Remove from specific time
@@ -239,27 +253,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     .from('signups')
                     .select('*')
                     .eq('channel_id', channel_id)
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .eq('time', timeString);
 
                 await supabase
                     .from('signups')
                     .delete()
                     .eq('channel_id', channel_id)
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .eq('time', timeString);
 
+                const dayStr = day ? `day ${day}` : 'today';
+                const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+                const whoStr = customName ? `**${customName}**` : 'You';
+
                 if (removed && removed.length > 0) {
-                    const dayStr = day ? `day ${day}` : 'today';
-                    const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
                     return res.status(200).json({
                         type: 4,
-                        data: { content: `You have been removed from ${dayStr} at ${hourStr}.` }
+                        data: { content: `${whoStr} ${customName ? 'has' : 'have'} been removed from ${dayStr} at ${hourStr}.` }
                     });
                 } else {
                     return res.status(200).json({
                         type: 4,
-                        data: { content: 'You were not signed up for that time.' }
+                        data: { content: `${whoStr} ${customName ? 'was' : 'were'} not signed up for that time.` }
                     });
                 }
             }
@@ -290,7 +306,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             if (titleRow) content += `**${titleRow.title}**\n\n`;
             
             if (!signups || signups.length === 0) {
-                content += '_No upcoming signups._\nUse `/add hour:14` to sign up for 2 PM today!';
+                content += '_No upcoming signups._\nUse `/add hour:14` to sign up for 2 PM today!\nUse `/add hour:14 name:John` to add someone else!';
             } else {
                 content += '**Upcoming Schedule:**\n';
                 signups.forEach((s, index) => {
@@ -299,7 +315,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     const hour = date.getHours();
                     const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
                     const timeStr = `Day ${day} at ${hourStr}`;
-                    content += `${index + 1}. <@${s.user_id}> - ${timeStr} ${isoToDiscordTimestamp(s.time)}\n`;
+                    
+                    // Check if it's a Discord user or custom name
+                    const userDisplay = s.user_id.startsWith('custom_') 
+                        ? `**${s.username}**` 
+                        : `<@${s.user_id}>`;
+                    
+                    content += `${index + 1}. ${userDisplay} - ${timeStr} ${isoToDiscordTimestamp(s.time)}\n`;
                 });
             }
             
@@ -322,7 +344,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             if (!signups || signups.length === 0) {
                 return res.status(200).json({
                     type: 4,
-                    data: { content: 'No upcoming signups in this channel.\nUse `/add hour:14` to sign up for 2 PM today!' }
+                    data: { content: 'No upcoming signups in this channel.\nUse `/add hour:14` to sign up for 2 PM today!\nUse `/add hour:14 name:John` to add someone else!' }
                 });
             }
 
@@ -331,6 +353,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const day = date.getDate();
             const hour = date.getHours();
             const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+            
+            // Check if it's a Discord user or custom name
+            const userDisplay = nextSignup.user_id.startsWith('custom_') 
+                ? `**${nextSignup.username}**` 
+                : `<@${nextSignup.user_id}>`;
             
             // Calculate time until the event
             const timeDiff = date.getTime() - now.getTime();
@@ -348,7 +375,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             return res.status(200).json({
                 type: 4,
-                data: { content: `**Next up:** <@${nextSignup.user_id}>\n📅 Day ${day} at ${hourStr}${timeUntilStr}\n${isoToDiscordTimestamp(nextSignup.time)}` }
+                data: { content: `**Next up:** ${userDisplay}\n📅 Day ${day} at ${hourStr}${timeUntilStr}\n${isoToDiscordTimestamp(nextSignup.time)}` }
             });
         }
 

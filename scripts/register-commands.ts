@@ -28,7 +28,25 @@ const commands = [
     },
     {
         name: 'remove',
-        description: 'Remove yourself from the list',
+        description: 'Remove yourself from a specific time or all upcoming times',
+        options: [
+            {
+                name: 'hour',
+                description: 'Hour to remove (0-23, leave empty to remove all)',
+                type: 4, // INTEGER
+                required: false,
+                min_value: 0,
+                max_value: 23,
+            },
+            {
+                name: 'day',
+                description: 'Day to remove (1-31, only used with hour)',
+                type: 4, // INTEGER
+                required: false,
+                min_value: 1,
+                max_value: 31,
+            },
+        ],
     },
     {
         name: 'list',

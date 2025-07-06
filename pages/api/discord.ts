@@ -175,19 +175,98 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         if (command === 'remove') {
-            await supabase
-                .from('signups')
-                .delete()
-                .eq('channel_id', channel_id)
-                .eq('user_id', user?.id || member.user.id)
-                .gte('time', new Date().toISOString());
-            return res.status(200).json({
-                type: 4,
-                data: { content: 'You have been removed from all upcoming slots for this channel.' }
-            });
+            const hour = data.options?.find((opt: any) => opt.name === 'hour')?.value;
+            const day = data.options?.find((opt: any) => opt.name === 'day')?.value;
+            
+            const userId = user?.id || member.user.id;
+            
+            if (hour === undefined) {
+                // Remove from all upcoming times
+                const { data: removed } = await supabase
+                    .from('signups')
+                    .select('*')
+                    .eq('channel_id', channel_id)
+                    .eq('user_id', userId)
+                    .gte('time', new Date().toISOString());
+                
+                await supabase
+                    .from('signups')
+                    .delete()
+                    .eq('channel_id', channel_id)
+                    .eq('user_id', userId)
+                    .gte('time', new Date().toISOString());
+                
+                const count = removed?.length || 0;
+                return res.status(200).json({
+                    type: 4,
+                    data: { content: `You have been removed from ${count} upcoming slot(s) in this channel.` }
+                });
+            } else {
+                // Remove from specific time
+                if (hour < 0 || hour > 23) {
+                    return res.status(200).json({
+                        type: 4,
+                        data: { content: 'Please provide a valid hour between 0-23.' },
+                    });
+                }
+
+                // Create the target time to remove
+                const now = new Date();
+                const targetDate = new Date();
+                
+                // Set the day (use today if not specified)
+                if (day !== undefined) {
+                    if (day < 1 || day > 31) {
+                        return res.status(200).json({
+                            type: 4,
+                            data: { content: 'Please provide a valid day between 1-31.' },
+                        });
+                    }
+                    targetDate.setDate(day);
+                }
+                
+                // Set the hour and reset minutes/seconds
+                targetDate.setHours(hour, 0, 0, 0);
+                
+                // If the time is in the past, assume they mean next month
+                if (targetDate <= now) {
+                    targetDate.setMonth(targetDate.getMonth() + 1);
+                }
+                
+                const timeString = targetDate.toISOString();
+
+                const { data: removed } = await supabase
+                    .from('signups')
+                    .select('*')
+                    .eq('channel_id', channel_id)
+                    .eq('user_id', userId)
+                    .eq('time', timeString);
+
+                await supabase
+                    .from('signups')
+                    .delete()
+                    .eq('channel_id', channel_id)
+                    .eq('user_id', userId)
+                    .eq('time', timeString);
+
+                if (removed && removed.length > 0) {
+                    const dayStr = day ? `day ${day}` : 'today';
+                    const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+                    return res.status(200).json({
+                        type: 4,
+                        data: { content: `You have been removed from ${dayStr} at ${hourStr}.` }
+                    });
+                } else {
+                    return res.status(200).json({
+                        type: 4,
+                        data: { content: 'You were not signed up for that time.' }
+                    });
+                }
+            }
         }
 
         if (command === 'list') {
+            // Clean up old signups first
             await supabase
                 .from('signups')
                 .delete()
@@ -208,14 +287,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 .order('time', { ascending: true });
 
             let content = '';
-            if (titleRow) content += `**${titleRow.title}**\n`;
+            if (titleRow) content += `**${titleRow.title}**\n\n`;
+            
             if (!signups || signups.length === 0) {
-                content += '_No signups for upcoming times._';
+                content += '_No upcoming signups._\nUse `/add hour:14` to sign up for 2 PM today!';
             } else {
-                content += signups.map(
-                    s => `• <@${s.user_id}> at ${isoToDiscordTimestamp(s.time)}`
-                ).join('\n');
+                content += '**Upcoming Schedule:**\n';
+                signups.forEach((s, index) => {
+                    const date = new Date(s.time);
+                    const day = date.getDate();
+                    const hour = date.getHours();
+                    const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+                    const timeStr = `Day ${day} at ${hourStr}`;
+                    content += `${index + 1}. <@${s.user_id}> - ${timeStr} ${isoToDiscordTimestamp(s.time)}\n`;
+                });
             }
+            
             return res.status(200).json({
                 type: 4,
                 data: { content }
@@ -228,29 +315,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 .from('signups')
                 .select('*')
                 .eq('channel_id', channel_id)
-                .order('time', { ascending: true });
+                .gte('time', now.toISOString())
+                .order('time', { ascending: true })
+                .limit(1);
 
             if (!signups || signups.length === 0) {
                 return res.status(200).json({
                     type: 4,
-                    data: { content: 'No signups in this channel.' }
+                    data: { content: 'No upcoming signups in this channel.\nUse `/add hour:14` to sign up for 2 PM today!' }
                 });
             }
 
-            // Find the signup with the closest time to now (future or past)
-            let closest = signups[0];
-            let minDiff = Math.abs(new Date(signups[0].time).getTime() - now.getTime());
-            for (const s of signups) {
-                const diff = Math.abs(new Date(s.time).getTime() - now.getTime());
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    closest = s;
-                }
+            const nextSignup = signups[0];
+            const date = new Date(nextSignup.time);
+            const day = date.getDate();
+            const hour = date.getHours();
+            const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+            
+            // Calculate time until the event
+            const timeDiff = date.getTime() - now.getTime();
+            const hoursUntil = Math.floor(timeDiff / (1000 * 60 * 60));
+            const minutesUntil = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            let timeUntilStr = '';
+            if (hoursUntil > 0) {
+                timeUntilStr = ` (in ${hoursUntil}h ${minutesUntil}m)`;
+            } else if (minutesUntil > 0) {
+                timeUntilStr = ` (in ${minutesUntil} minutes)`;
+            } else {
+                timeUntilStr = ' (happening now!)';
             }
 
             return res.status(200).json({
                 type: 4,
-                data: { content: `Next up: <@${closest.user_id}> at ${isoToDiscordTimestamp(closest.time)}` }
+                data: { content: `**Next up:** <@${nextSignup.user_id}>\n📅 Day ${day} at ${hourStr}${timeUntilStr}\n${isoToDiscordTimestamp(nextSignup.time)}` }
             });
         }
 

@@ -246,7 +246,21 @@ export default function Dashboard() {
         const { data: t } = await supabase.from("titles").select("*").order("title");
         const { data: s } = await supabase.from("signups").select("*").order("time");
         setTitles(t || []);
-        setSignups(s || []);
+        // Sort signups by date and then by hour within each day
+        const sortedSignups = (s || []).sort((a, b) => {
+            const dateA = new Date(a.time);
+            const dateB = new Date(b.time);
+            const dayA = dateA.toDateString();
+            const dayB = dateB.toDateString();
+            
+            if (dayA === dayB) {
+                // Same day, sort by hour
+                return dateA.getHours() - dateB.getHours();
+            }
+            // Different days, sort by date
+            return dateA.getTime() - dateB.getTime();
+        });
+        setSignups(sortedSignups);
         setLoading(false);
     }
 

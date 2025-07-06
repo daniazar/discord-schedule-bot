@@ -137,8 +137,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // Set the hour and reset minutes/seconds
             signupDate.setHours(hour, 0, 0, 0);
             
-            // If the time is in the past, assume they mean next month
-            if (signupDate <= now) {
+            // If the time is in the past and no specific day was provided, assume next day
+            if (signupDate <= now && day === undefined) {
+                signupDate.setDate(signupDate.getDate() + 1);
+            } else if (signupDate <= now && day !== undefined) {
+                // If specific day was provided but still in past, assume next month
                 signupDate.setMonth(signupDate.getMonth() + 1);
             }
             
@@ -309,19 +312,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 content += '_No upcoming signups._\nUse `/add hour:14` to sign up for 2 PM today!\nUse `/add hour:14 name:John` to add someone else!';
             } else {
                 content += '**Upcoming Schedule:**\n';
-                signups.forEach((s, index) => {
+                
+                // Group signups by day and sort by hour within each day
+                const signupsByDay: { [key: string]: any[] } = {};
+                signups.forEach((s) => {
                     const date = new Date(s.time);
-                    const day = date.getDate();
-                    const hour = date.getHours();
-                    const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
-                    const timeStr = `Day ${day} at ${hourStr}`;
+                    const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                    if (!signupsByDay[dayKey]) {
+                        signupsByDay[dayKey] = [];
+                    }
+                    signupsByDay[dayKey].push(s);
+                });
+                
+                // Sort days and hours within each day
+                const sortedDays = Object.keys(signupsByDay).sort();
+                let index = 1;
+                
+                sortedDays.forEach((dayKey) => {
+                    const daySignups = signupsByDay[dayKey].sort((a, b) => {
+                        const hourA = new Date(a.time).getHours();
+                        const hourB = new Date(b.time).getHours();
+                        return hourA - hourB;
+                    });
                     
-                    // Check if it's a Discord user or custom name
-                    const userDisplay = s.user_id.startsWith('custom_') 
-                        ? `**${s.username}**` 
-                        : `<@${s.user_id}>`;
-                    
-                    content += `${index + 1}. ${userDisplay} - ${timeStr} ${isoToDiscordTimestamp(s.time)}\n`;
+                    daySignups.forEach((s) => {
+                        const date = new Date(s.time);
+                        const day = date.getDate();
+                        const hour = date.getHours();
+                        const hourStr = hour < 10 ? `0${hour}:00` : `${hour}:00`;
+                        const timeStr = `Day ${day} at ${hourStr}`;
+                        
+                        // Check if it's a Discord user or custom name
+                        const userDisplay = s.user_id.startsWith('custom_') 
+                            ? `**${s.username}**` 
+                            : `<@${s.user_id}>`;
+                        
+                        content += `${index}. ${userDisplay} - ${timeStr} ${isoToDiscordTimestamp(s.time)}\n`;
+                        index++;
+                    });
                 });
             }
             

@@ -13,9 +13,12 @@ type SignupRow = {
     time: string;
 };
 
-function isoLocal(dt: string) {
+function formatUtcTime(dt: string) {
     const d = new Date(dt);
-    return d.toLocaleString();
+    const utcHour = d.getUTCHours();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[d.getUTCDay()];
+    return `${utcHour.toString().padStart(2, '0')}:00 UTC (${dayName})`;
 }
 
 const styles = {
@@ -313,7 +316,7 @@ export default function Dashboard() {
         <div style={styles.container}>
             <div style={styles.header}>
                 <h1 style={styles.title}>Discord Schedule Dashboard</h1>
-                <p style={styles.subtitle}>Manage your Discord community schedules</p>
+                <p style={styles.subtitle}>Manage your Discord community schedules • All times in UTC</p>
             </div>
             
             <div style={styles.controls}>
@@ -328,6 +331,17 @@ export default function Dashboard() {
                     value={channelFilter}
                     onChange={(e) => setChannelFilter(e.target.value)}
                 />
+                <div style={{ 
+                    padding: '8px 16px', 
+                    backgroundColor: '#dbeafe', 
+                    color: '#1e40af', 
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    border: '1px solid #bfdbfe'
+                }}>
+                    🌍 All times are displayed in UTC
+                </div>
             </div>
 
             {loading && (
@@ -385,7 +399,7 @@ export default function Dashboard() {
                         <table style={styles.table}>
                             <thead>
                                 <tr>
-                                    <th style={styles.tableHeader}>Time (Local)</th>
+                                    <th style={styles.tableHeader}>Time (UTC)</th>
                                     <th style={styles.tableHeader}>User</th>
                                     <th style={styles.tableHeader}>Actions</th>
                                 </tr>
@@ -393,7 +407,7 @@ export default function Dashboard() {
                             <tbody>
                                 {signups.filter(s => s.channel_id === title.channel_id).map(s => (
                                     <tr key={s.id}>
-                                        <td style={styles.tableCell}>{isoLocal(s.time)}</td>
+                                        <td style={styles.tableCell}>{formatUtcTime(s.time)}</td>
                                         <td style={styles.tableCell}>
                                             <span style={{ 
                                                 backgroundColor: '#ddd6fe', 
@@ -417,20 +431,25 @@ export default function Dashboard() {
                                 ))}
                                 <tr style={{ backgroundColor: '#f8fafc' }}>
                                     <td style={styles.tableCell}>
-                                        <input
-                                            type="datetime-local"
-                                            value={addSignup[title.channel_id]?.time || ""}
-                                            onChange={e =>
-                                                setAddSignup(s => ({
-                                                    ...s,
-                                                    [title.channel_id]: {
-                                                        ...s[title.channel_id],
-                                                        time: e.target.value,
-                                                    },
-                                                }))
-                                            }
-                                            style={styles.input}
-                                        />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <input
+                                                type="datetime-local"
+                                                value={addSignup[title.channel_id]?.time || ""}
+                                                onChange={e =>
+                                                    setAddSignup(s => ({
+                                                        ...s,
+                                                        [title.channel_id]: {
+                                                            ...s[title.channel_id],
+                                                            time: e.target.value,
+                                                        },
+                                                    }))
+                                                }
+                                                style={styles.input}
+                                            />
+                                            <small style={{ color: '#64748b', fontSize: '12px' }}>
+                                                Enter time in UTC timezone
+                                            </small>
+                                        </div>
                                     </td>
                                     <td style={styles.tableCell}>
                                         <input
@@ -476,8 +495,16 @@ export default function Dashboard() {
                 )}
 
                 <footer style={styles.footer}>
-                    <p style={{ margin: '0' }}>
+                    <p style={{ margin: '0 0 12px 0', fontWeight: '600' }}>
                         🚀 Live Dashboard - All changes sync automatically with Supabase and Discord bot
+                    </p>
+                    <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: '1.5' }}>
+                        <strong>Discord Commands:</strong> Use <code>/add hour:14</code> or <code>/add hour:14 day:monday</code> (UTC) • 
+                        <code>/remove hour:14</code> • <code>/list</code> • <code>/next</code><br/>
+                        Add non-Discord users with <code>/add hour:14 name:username</code>
+                    </p>
+                    <p style={{ margin: '0', fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
+                        Developed by Daniel Azar
                     </p>
                 </footer>
             </div>
@@ -505,6 +532,16 @@ export default function Dashboard() {
                 
                 .card:hover {
                     box-shadow: 0 8px 25px -1px rgba(0, 0, 0, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+                }
+                
+                code {
+                    background-color: #f1f5f9;
+                    color: #475569;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                    font-size: 12px;
+                    font-weight: 600;
                 }
             `}</style>
         </div>

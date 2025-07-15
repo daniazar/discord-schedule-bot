@@ -108,14 +108,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (command === 'add') {
             // Get hour (required), day (optional), and name (optional)
-            const hour = data.options.find((opt: any) => opt.name === 'hour')?.value;
-            const day = data.options.find((opt: any) => opt.name === 'day')?.value;
-            const customName = data.options.find((opt: any) => opt.name === 'name')?.value;
+            console.log('Add command received with options:', data.options);
             
-            if (hour === undefined || hour < 0 || hour > 23) {
+            // Check if we have options at all
+            if (!data.options || data.options.length === 0) {
+                return res.status(200).json({
+                    type: 4,
+                    data: { content: 'Please provide at least an hour parameter (0-23).' },
+                });
+            }
+            
+            const hourOption = data.options.find((opt: any) => opt.name === 'hour');
+            const dayOption = data.options.find((opt: any) => opt.name === 'day');
+            const customNameOption = data.options.find((opt: any) => opt.name === 'name');
+            
+            const hour = hourOption?.value;
+            const day = dayOption?.value;
+            const customName = customNameOption?.value;
+            
+            console.log('Parsed options:', { hour, day, customName });
+            
+            // Validate hour parameter
+            if (hour === undefined || hour === null || typeof hour !== 'number' || hour < 0 || hour > 23) {
                 return res.status(200).json({
                     type: 4,
                     data: { content: 'Please provide a valid hour between 0-23 (e.g. 14 for 2 PM).' },
+                });
+            }
+            
+            // Validate day parameter if provided
+            if (day !== undefined && day !== null && (typeof day !== 'number' || day < 1 || day > 31)) {
+                return res.status(200).json({
+                    type: 4,
+                    data: { content: 'Please provide a valid day between 1-31.' },
                 });
             }
 
@@ -124,13 +149,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const signupDate = new Date();
             
             // Set the day (use today if not specified)
-            if (day !== undefined) {
-                if (day < 1 || day > 31) {
-                    return res.status(200).json({
-                        type: 4,
-                        data: { content: 'Please provide a valid day between 1-31.' },
-                    });
-                }
+            if (day !== undefined && day !== null) {
                 signupDate.setDate(day);
             }
             
@@ -138,9 +157,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             signupDate.setHours(hour, 0, 0, 0);
             
             // If the time is in the past and no specific day was provided, assume next day
-            if (signupDate <= now && day === undefined) {
+            if (signupDate <= now && (day === undefined || day === null)) {
                 signupDate.setDate(signupDate.getDate() + 1);
-            } else if (signupDate <= now && day !== undefined) {
+            } else if (signupDate <= now && day !== undefined && day !== null) {
                 // If specific day was provided but still in past, assume next month
                 signupDate.setMonth(signupDate.getMonth() + 1);
             }
